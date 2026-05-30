@@ -39,7 +39,7 @@
 python deploy.py
 ```
 Скрипт автоматически:
-1. Подключится по SSH к вашему VPS `2.26.0.249`.
+1. Подключится по SSH к вашему VPS `YOUR_SERVER_IP`.
 2. Загрузит все исходные коды бэкенда, шаблонов и стилей в папку `/root/amnezia-panel-mvp`.
 3. Установит необходимые зависимости (`python3-venv`, `pip`).
 4. Запустит диагностический скрипт `check_server.sh`.
@@ -127,7 +127,7 @@ systemctl start amnezia-panel
 
 **Пример CURL запроса:**
 ```bash
-curl -X POST http://2.26.0.249:8080/api/v1/clients \
+curl -X POST http://YOUR_SERVER_IP:8080/api/v1/clients \
   -H "Authorization: Bearer awg_bot_api_token_71fb589254d3bc7e0da1a2ef490d1bc7" \
   -H "Content-Type: application/json" \
   -d '{"name": "tg_user_123", "telegram_id": 123456, "days": 30, "traffic_limit_gb": 0}'
@@ -146,9 +146,9 @@ curl -X POST http://2.26.0.249:8080/api/v1/clients \
   "expires_at": "2026-06-27T05:40:58.532700",
   "created_at": "2026-05-28T05:40:58.532700",
   "disabled_at": null,
-  "config_text": "[Interface]\nPrivateKey = AHei0...\nAddress = 10.66.66.6/32\nDNS = 1.1.1.1, 8.8.8.8\n\n# Параметры маскировки AmneziaWG\nJc = 4\nJmin = 40\n...\n\n[Peer]\nPublicKey = 93BbTH6E5ZDTLgJj+mpIykcj9R4Tutv48cQguhdyuGA=\nEndpoint = 2.26.0.249:51820\nAllowedIPs = 0.0.0.0/0\nPersistentKeepalive = 25",
-  "conf_download_url": "http://2.26.0.249:8080/clients/b3a8a7e1-8ba0-4dd4-a0dd-fb1022040148/download",
-  "qr_url": "http://2.26.0.249:8080/clients/b3a8a7e1-8ba0-4dd4-a0dd-fb1022040148/qr",
+  "config_text": "[Interface]\nPrivateKey = AHei0...\nAddress = 10.66.66.6/32\nDNS = 1.1.1.1, 8.8.8.8\n\n# Параметры маскировки AmneziaWG\nJc = 4\nJmin = 40\n...\n\n[Peer]\nPublicKey = 93BbTH6E5ZDTLgJj+mpIykcj9R4Tutv48cQguhdyuGA=\nEndpoint = YOUR_SERVER_IP:51820\nAllowedIPs = 0.0.0.0/0\nPersistentKeepalive = 25",
+  "conf_download_url": "http://YOUR_SERVER_IP:8080/clients/b3a8a7e1-8ba0-4dd4-a0dd-fb1022040148/download",
+  "qr_url": "http://YOUR_SERVER_IP:8080/clients/b3a8a7e1-8ba0-4dd4-a0dd-fb1022040148/qr",
   "deep_link": null
 }
 ```

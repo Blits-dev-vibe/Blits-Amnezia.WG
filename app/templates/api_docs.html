@@ -199,6 +199,8 @@ curl -X POST "http://{{ public_ip }}:{{ panel_port }}/api/v1/clients" \
 #   "qr_url_v2": "/clients/a4d3391b-b4be-4161-825f-.../qr?version=2.0",
 #   "qr_url_split": "/clients/a4d3391b-b4be-4161-825f-.../qr?split=true",
 #   "qr_url_split_v2": "/clients/a4d3391b-b4be-4161-825f-.../qr?split=true&version=2.0",
+#   "qr_series_url": "/clients/a4d3391b-b4be-4161-825f-.../qr-series",
+#   "qr_series_url_v2": "/clients/a4d3391b-b4be-4161-825f-.../qr-series?version=2.0",
 #   "deep_link": "vpn://...",       <-- Amnezia Legacy 1.0 (для старых версий)
 #   "deep_link_v2": "vpn://..."    <-- Amnezia 2.0 (для новых версий 4.8.x+)
 # }</div>
@@ -363,6 +365,7 @@ class AmneziaPanelAPI:
             copyTextToClipboard(textToCopy, 'Код успешно скопирован в буфер обмена!');
         }
     </script>
+<script src="/static/i18n.js"></script>
 </body>
 </html>
 

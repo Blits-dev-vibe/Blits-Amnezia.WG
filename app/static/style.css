@@ -739,6 +739,28 @@ body {
     height: auto;
 }
 
+.qr-series {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    min-height: 180px;
+}
+
+.qr-part {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.qr-part-label,
+.qr-loading {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
 /* Animations */
 @keyframes fadeIn {
     from { opacity: 0; }

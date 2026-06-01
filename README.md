@@ -1,121 +1,71 @@
-# 🛡️ AmneziaWG VPN Web Panel (Blitz Panel) - Автоустановка в 1 клик
+# Blitz AmneziaWG Panel
 
-Современная, премиальная веб-панель на базе **FastAPI**, **Docker** и **Vanilla CSS** для удобного управления VPN-соединениями AmneziaWG и автоматического выпуска ключей с интеграцией в Telegram-боты.
+Clean web panel for AmneziaWG with two compatible profiles:
 
-Вся система полностью автоматизирована и упакована в Docker. Обфускация трафика работает на нативном уровне ядра с помощью DKMS-модуля AmneziaWG, а сама панель изолирована в контейнере.
+- **Amnezia 2.0**: full AWG profile with S3/S4 parameters.
+- **Legacy / Amnezia 1.x**: separate profile without S3/S4 for older clients.
+- Full tunnel and split tunnel client exports.
+- Native AmneziaVPN import links and multi-part QR codes.
+- Russian / English panel language switch in settings.
+- Docker-based web panel installation.
 
----
+## One-command install
 
-## ✨ Основные возможности
-
-1. **Полное управление AmneziaWG на сервере:**
-   * Автоматическая сборка DKMS-модуля ядра `amneziawg` из официальных репозиториев разработчиков.
-   * Настройка NAT (MASQUERADE) маршрутизации для перенаправления клиентского трафика в интернет.
-2. **Динамический выпуск ключей:**
-   * Выдача текстового конфига (Wireguard-style с Junk-параметрами маскировки).
-   * Автоматическая генерация PNG QR-кода для мгновенного сканирования мобильными устройствами (универсальный формат, подходящий для любых WireGuard и AmneziaWG клиентов).
-   * Скачивание готового `.conf` файла.
-3. **Бесшовная live-синхронизация:**
-   * Добавление/отключение пиров на лету через `awg syncconf` без разрыва активных сессий других пользователей.
-4. **Интеграция с Telegram-ботом:**
-   * Bearer-auth защищенное API для автоматического создания, продления и блокировки ключей после оплаты.
-5. **Премиальный UI-интерфейс:**
-   * Адаптивная панель администратора с отображением системных метрик и логов.
-   * Поддержка светлой и темной тем.
-   * Умный UDP-каскад для создания цепочек серверов (Double VPN).
-
----
-
-## 🚀 Быстрая автоматическая установка в 1 клик
-
-Для развертывания панели на чистом сервере под управлением **Ubuntu** (рекомендуется 22.04 или 24.04 LTS) вам понадобится всего **одна команда в терминале**.
-
-Подключитесь к вашему серверу по SSH от имени `root` и выполните:
+Run as `root` on Ubuntu/Debian:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/kuznecovpasa807-ui/Blits-Amnezia.WG/main/install.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/kuznecovpasa807-ui/Blits-Amnezia.WG/main/install.sh)
 ```
 
-### ⚙️ Что сделает установщик автоматически:
-1. Установит **Docker** и **Docker Compose** на сервер (если их нет).
-2. Скомпилирует и настроит модуль ядра **AmneziaWG** на хосте.
-3. **Запустит интерактивный опрос:**
-   * Предложит выбрать режим доступа: по **IP-адресу** (на порту `80` без SSL) или на **домене** (с автоматическим выпуском бесплатного SSL-сертификата Let's Encrypt через Certbot и автонастройкой Nginx).
-   * Предложит настроить пароль администратора: использовать стандартный `admin/admin` (с принудительной сменой при первом входе) или сразу задать свой личный надежный пароль в консоли.
-4. Создаст и запустит Docker-контейнеры в фоновом режиме.
-5. Выведет в консоль красивый отчет с адресом панели, паролями и сгенерированным секретным API-токеном для Telegram-бота!
+If the repository is private, keep it private and pass a GitHub token only for the install command:
 
----
+```bash
+export GITHUB_TOKEN='YOUR_GITHUB_TOKEN'
+bash -c "$(curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" https://raw.githubusercontent.com/kuznecovpasa807-ui/Blits-Amnezia.WG/main/install.sh)"
+unset GITHUB_TOKEN
+```
 
-## 📱 Как подключить клиента
+The installer downloads the project, installs Docker if needed, installs/configures AmneziaWG, creates panel secrets, starts the panel, and asks only for the installation choices it cannot safely guess.
 
-Официальное приложение **AmneziaVPN** (доступно на Android, iOS, Windows, macOS) полностью поддерживает протокол AmneziaWG. Импортировать выданный ключ можно тремя способами:
+## Update
 
-1. **Через QR-код (Самый удобный способ):**
-   * Нажмите в приложении **«Добавить сервер»** -> **«Сканировать QR-код»**.
-   * Направьте камеру на сгенерированный в панели QR-код. Он содержит чистый универсальный текстовый конфиг, который распознается любыми клиентами (Amnezia, WireGuard, Shadowrocket и др.).
-2. **Через файл `.conf`:**
-   * Скачайте файл конфигурации `<имя_клиента>.conf` из панели и импортируйте его в приложение.
-3. **Через буфер обмена:**
-   * Скопируйте текст ключа или нативную ссылку `vpn://` из панели и вставьте её в приложение через импорт ссылок.
+From the server directory:
 
----
+```bash
+cd /opt/blitz-amnezia-panel
+git pull origin main
+docker compose up -d --build
+```
 
-## 🤖 Интеграция с Telegram-ботом (REST API)
+If the old install was cloned into another folder, run the same commands there.
 
-Все запросы к API должны содержать заголовок авторизации с вашим Bearer токеном, выданным при установке:
-`Authorization: Bearer <ваш_токен_из_panel.env>`
+## Ports
 
-### 1. Создание нового клиента после оплаты
-* **Метод:** `POST`
-* **Путь:** `/api/v1/clients`
-* **Тело запроса (JSON):**
-  ```json
-  {
-    "name": "telegram_123456",
-    "telegram_id": 123456,
-    "days": 30,
-    "traffic_limit_gb": 0
-  }
-  ```
+- Web panel: `80` in IP mode, or internal `1010` behind Nginx/domain mode.
+- Amnezia 2.0: `51820/udp` by default.
+- Legacy / Amnezia 1.x: `43913/udp` by default.
 
-### 2. Продление ключа клиента
-* **Метод:** `POST`
-* **Путь:** `/api/v1/clients/{client_id}/extend`
-* **Тело запроса (JSON):**
-  ```json
-  {
-    "days": 30
-  }
-  ```
+## QR import
 
-### 3. Временная блокировка пира
-* **Метод:** `POST`
-* **Путь:** `/api/v1/clients/{client_id}/disable`
+AmneziaVPN may ask for more than one QR code. The panel now generates a QR series for every profile:
 
-### 4. Разблокировка пира
-* **Метод:** `POST`
-* **Путь:** `/api/v1/clients/{client_id}/enable`
+- Legacy: scan `QR 1/N`, then `QR 2/N`, and so on.
+- Amnezia 2.0: scan its own `QR 1/N`, then the next parts.
 
-### 5. Удаление клиента
-* **Метод:** `DELETE`
-* **Путь:** `/api/v1/clients/{client_id}`
+Do not mix Legacy and 2.0 parts in one import.
 
----
+## Security notes
 
-## 🛠️ Полезные команды для управления на сервере
+- Runtime data is stored in `data/` and is ignored by Git.
+- `.env`, keys, database files, generated configs, and backups are ignored by Git.
+- API tokens and JWT secrets are generated during install and written to `data/panel.env`.
+- Do not commit real GitHub tokens, root passwords, Telegram bot tokens, or generated client configs.
 
-Панель работает в изолированном Docker-контейнере. Для управления используйте стандартные команды:
+## Useful checks
 
-* **Просмотр логов панели в реальном времени:**
-  ```bash
-  docker logs -f amnezia-panel
-  ```
-* **Перезапуск панели:**
-  ```bash
-  docker compose restart amnezia-panel
-  ```
-* **Остановка всей системы:**
-  ```bash
-  docker compose down
-  ```
+```bash
+docker compose ps
+systemctl status awg-quick@awg0 --no-pager -l
+systemctl status awg-quick@awg_legacy --no-pager -l
+awg show
+```

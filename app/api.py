@@ -79,6 +79,10 @@ async def create_client(payload: ClientCreate, api_token: str = Depends(verify_a
         qr_url_v2 = f"/clients/{client_id}/qr?version=2.0"
         qr_url_split = f"/clients/{client_id}/qr?split=true"
         qr_url_split_v2 = f"/clients/{client_id}/qr?split=true&version=2.0"
+        qr_series_url = f"/clients/{client_id}/qr-series"
+        qr_series_url_v2 = f"/clients/{client_id}/qr-series?version=2.0"
+        qr_series_url_split = f"/clients/{client_id}/qr-series?split=true"
+        qr_series_url_split_v2 = f"/clients/{client_id}/qr-series?split=true&version=2.0"
         
         # Deep link
         config_text_legacy = generate_legacy_client_config(client_ip, client_private_key, preshared_key=preshared_key)
@@ -108,6 +112,10 @@ async def create_client(payload: ClientCreate, api_token: str = Depends(verify_a
             qr_url_v2=qr_url_v2,
             qr_url_split=qr_url_split,
             qr_url_split_v2=qr_url_split_v2,
+            qr_series_url=qr_series_url,
+            qr_series_url_v2=qr_series_url_v2,
+            qr_series_url_split=qr_series_url_split,
+            qr_series_url_split_v2=qr_series_url_split_v2,
             deep_link=deep_link,
             deep_link_v2=deep_link_v2,
             config_text_split=config_text_split,
@@ -143,6 +151,10 @@ async def get_client_api(client_id: str, api_token: str = Depends(verify_api_tok
     qr_url_v2 = f"/clients/{client_id}/qr?version=2.0"
     qr_url_split = f"/clients/{client_id}/qr?split=true"
     qr_url_split_v2 = f"/clients/{client_id}/qr?split=true&version=2.0"
+    qr_series_url = f"/clients/{client_id}/qr-series"
+    qr_series_url_v2 = f"/clients/{client_id}/qr-series?version=2.0"
+    qr_series_url_split = f"/clients/{client_id}/qr-series?split=true"
+    qr_series_url_split_v2 = f"/clients/{client_id}/qr-series?split=true&version=2.0"
     config_text_legacy = generate_legacy_client_config(client['ip_address'], client['private_key'], preshared_key=client['preshared_key'])
     deep_link = generate_amnezia_deeplink(config_text_legacy, version="1.0", client_public_key=client['public_key'], client_name=client['name'])
     deep_link_v2 = generate_amnezia_deeplink(config_text, version="2.0", client_public_key=client['public_key'], client_name=client['name'])
@@ -170,6 +182,10 @@ async def get_client_api(client_id: str, api_token: str = Depends(verify_api_tok
         qr_url_v2=qr_url_v2,
         qr_url_split=qr_url_split,
         qr_url_split_v2=qr_url_split_v2,
+        qr_series_url=qr_series_url,
+        qr_series_url_v2=qr_series_url_v2,
+        qr_series_url_split=qr_series_url_split,
+        qr_series_url_split_v2=qr_series_url_split_v2,
         deep_link=deep_link,
         deep_link_v2=deep_link_v2,
         config_text_split=config_text_split,

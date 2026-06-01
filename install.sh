@@ -28,7 +28,11 @@ ensure_project_files() {
 
     tmp_dir="$(mktemp -d)"
     mkdir -p "$INSTALL_DIR"
-    curl -fsSL "$REPO_ARCHIVE_URL" -o "$tmp_dir/repo.tar.gz"
+    curl_args=(-fsSL)
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+        curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+    fi
+    curl "${curl_args[@]}" "$REPO_ARCHIVE_URL" -o "$tmp_dir/repo.tar.gz"
     tar -xzf "$tmp_dir/repo.tar.gz" -C "$tmp_dir"
     src_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$src_dir" ] || [ ! -d "$src_dir" ]; then

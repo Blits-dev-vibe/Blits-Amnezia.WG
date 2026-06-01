@@ -27,6 +27,10 @@ class ClientResponse(BaseModel):
     qr_url_v2: Optional[str] = None
     qr_url_split: Optional[str] = None
     qr_url_split_v2: Optional[str] = None
+    qr_series_url: Optional[str] = None
+    qr_series_url_v2: Optional[str] = None
+    qr_series_url_split: Optional[str] = None
+    qr_series_url_split_v2: Optional[str] = None
     deep_link: Optional[str]
     deep_link_v2: Optional[str]
     config_text_split: Optional[str] = None

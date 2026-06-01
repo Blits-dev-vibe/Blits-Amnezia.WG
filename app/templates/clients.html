@@ -324,14 +324,15 @@
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
                         <span style="font-weight: 600; font-size: 14px; text-align: center;">QR-коды для AmneziaVPN</span>
-                        <div style="display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 10px; width: 100%; max-width: 360px;">
+                        <p style="margin: 0; font-size: 12px; color: var(--text-muted); text-align: center;">Сканируй все части одной версии по порядку.</p>
+                        <div style="display: grid; grid-template-columns: repeat(2, minmax(130px, 1fr)); gap: 10px; width: 100%; max-width: 460px;">
                             <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
                                 <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Legacy</span>
-                                <div class="qr-box"><img id="modal-qr-img-legacy" src="" alt="Legacy QR Code"></div>
+                                <div id="modal-qr-series-legacy" class="qr-series"></div>
                             </div>
                             <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
                                 <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Amnezia 2.0</span>
-                                <div class="qr-box"><img id="modal-qr-img-v2" src="" alt="Amnezia 2.0 QR Code"></div>
+                                <div id="modal-qr-series-v2" class="qr-series"></div>
                             </div>
                         </div>
                     </div>
@@ -409,8 +410,6 @@
         function updateModalUI() {
             const configPreview = document.getElementById('modal-config-text');
             const downloadBtn = document.getElementById('modal-download-link');
-            const qrImgLegacy = document.getElementById('modal-qr-img-legacy');
-            const qrImgV2 = document.getElementById('modal-qr-img-v2');
             const deeplinkInput = document.getElementById('modal-deeplink-input');
             const deeplinkBtn = document.getElementById('modal-deeplink-btn');
             const tabLegacy = document.getElementById('tab-legacy');
@@ -432,22 +431,53 @@
             if (currentMode === "split") downloadParams.set('split', 'true');
             downloadBtn.href = '/clients/' + activeClientId + '/download?' + downloadParams.toString();
 
-            const qrParamsLegacy = new URLSearchParams();
-            qrParamsLegacy.set('version', '1.0');
-            qrParamsLegacy.set('_', Date.now().toString());
-            if (currentMode === "split") qrParamsLegacy.set('split', 'true');
-            qrImgLegacy.src = '/clients/' + activeClientId + '/qr?' + qrParamsLegacy.toString();
-
-            const qrParamsV2 = new URLSearchParams();
-            qrParamsV2.set('version', '2.0');
-            qrParamsV2.set('_', Date.now().toString());
-            if (currentMode === "split") qrParamsV2.set('split', 'true');
-            qrImgV2.src = '/clients/' + activeClientId + '/qr?' + qrParamsV2.toString();
+            renderQrSeries('1.0', 'modal-qr-series-legacy');
+            renderQrSeries('2.0', 'modal-qr-series-v2');
 
             deeplinkInput.value = link || "Не удалось сгенерировать ссылку";
             deeplinkBtn.href = link || "#";
             deeplinkBtn.style.pointerEvents = link ? 'auto' : 'none';
             deeplinkBtn.style.opacity = link ? '1' : '0.5';
+        }
+
+        async function renderQrSeries(version, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container || !activeClientId) return;
+            const t = window.panelT || ((text) => text);
+            container.innerHTML = '<span class="qr-loading">' + t('Загрузка...') + '</span>';
+            const params = new URLSearchParams();
+            params.set('version', version);
+            params.set('split', currentMode === "split" ? 'true' : 'false');
+            params.set('_', Date.now().toString());
+
+            try {
+                const response = await fetch('/clients/' + activeClientId + '/qr-series?' + params.toString());
+                if (!response.ok) throw new Error('QR series request failed');
+                const series = await response.json();
+                container.innerHTML = '';
+                series.urls.forEach((url, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'qr-part';
+
+                    const label = document.createElement('span');
+                    label.className = 'qr-part-label';
+                    label.textContent = 'QR ' + (index + 1) + '/' + series.count;
+
+                    const box = document.createElement('div');
+                    box.className = 'qr-box';
+
+                    const img = document.createElement('img');
+                    img.alt = 'Amnezia QR ' + (index + 1) + ' of ' + series.count;
+                    img.src = url + '&_=' + Date.now();
+
+                    box.appendChild(img);
+                    item.appendChild(label);
+                    item.appendChild(box);
+                    container.appendChild(item);
+                });
+            } catch (error) {
+                container.innerHTML = '<span class="qr-loading">' + t('QR недоступен') + '</span>';
+            }
         }
 
         function switchRoutingMode(mode) {
@@ -501,6 +531,7 @@
             if (event.target === modal) closeConfigModal();
         }
     </script>
+<script src="/static/i18n.js"></script>
 </body>
 </html>
 

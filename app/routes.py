@@ -35,7 +35,8 @@ from app.vpn_manager import (
     get_split_tunnel_routes, get_split_tunnel_routes_text, refresh_client_traffic_usage,
     rebuild_and_sync_vpn_config, set_split_tunnel_routes_text, enforce_expired_clients
 )
-from app.deeplink import generate_amnezia_deeplink
+from app.deeplink import generate_amnezia_deeplink, generate_amnezia_payload
+from app.qr_series import render_qr_png, split_amnezia_qr_payload
 
 router = APIRouter(tags=["Web UI"])
 templates = Jinja2Templates(directory="app/templates")
@@ -208,8 +209,68 @@ async def download_client_conf(client_id: str, split: bool = False, version: str
         headers={"Content-Disposition": disposition}
     )
 
+def _get_client_config_for_export(client: dict, split: bool, version: str) -> str:
+    if client["route_type"] == "cascade":
+        if split and version == "1.0":
+            return client["config_text_split_legacy"] or client["config_text_legacy"] or client["config_text_v2"]
+        if split:
+            return client["config_text_split_v2"] or client["config_text_v2"]
+        if version == "1.0":
+            return client["config_text_legacy"] or client["config_text_v2"]
+        return client["config_text_v2"]
+    if version == "1.0":
+        return generate_legacy_client_config(
+            client["ip_address"],
+            client["private_key"],
+            split_tunnel=split,
+            preshared_key=client["preshared_key"],
+        )
+    return generate_client_config(
+        client["ip_address"],
+        client["private_key"],
+        split_tunnel=split,
+        preshared_key=client["preshared_key"],
+    )
+
+
+def _get_amnezia_qr_parts(client: dict, split: bool, version: str) -> list[str]:
+    config_text = _get_client_config_for_export(client, split=split, version=version)
+    payload = generate_amnezia_payload(
+        config_text,
+        version=version,
+        client_public_key=client["public_key"],
+        split_tunnel=split,
+        client_name=client["name"],
+    )
+    if payload:
+        return split_amnezia_qr_payload(payload)
+    return [config_text]
+
+
+@router.get("/clients/{client_id}/qr-series")
+async def get_client_qr_series(client_id: str, split: bool = False, version: str = "1.0"):
+    conn = get_db_connection()
+    client = conn.execute("SELECT * FROM clients WHERE id = ? AND deleted_at IS NULL", (client_id,)).fetchone()
+    conn.close()
+
+    if not client:
+        raise HTTPException(status_code=404, detail="QR code not found")
+
+    parts = _get_amnezia_qr_parts(dict(client), split=split, version=version)
+    query_base = f"version={version}&split={'true' if split else 'false'}"
+    return JSONResponse({
+        "version": version,
+        "split": split,
+        "count": len(parts),
+        "urls": [
+            f"/clients/{client_id}/qr?{query_base}&part={index}"
+            for index in range(len(parts))
+        ],
+    })
+
+
 @router.get("/clients/{client_id}/qr")
-async def download_client_qr(client_id: str, split: bool = False, version: str = "1.0"):
+async def download_client_qr(client_id: str, split: bool = False, version: str = "1.0", part: int = 0):
     """
     Отдает изображение QR-кода PNG по UUID клиента. Доступно без авторизации.
     """
@@ -220,45 +281,19 @@ async def download_client_qr(client_id: str, split: bool = False, version: str =
     if not client:
         raise HTTPException(status_code=404, detail="QR-код не найден")
         
-    if client["route_type"] == "cascade":
-        if split and version == "1.0":
-            config_text = client["config_text_split_legacy"] or client["config_text_legacy"] or client["config_text_v2"]
-        elif split:
-            config_text = client["config_text_split_v2"] or client["config_text_v2"]
-        elif version == "1.0":
-            config_text = client["config_text_legacy"] or client["config_text_v2"]
-        else:
-            config_text = client["config_text_v2"]
-    elif version == "1.0":
-        config_text = generate_legacy_client_config(client['ip_address'], client['private_key'], split_tunnel=split, preshared_key=client['preshared_key'])
-    else:
-        config_text = generate_client_config(client['ip_address'], client['private_key'], split_tunnel=split, preshared_key=client['preshared_key'])
+    parts = _get_amnezia_qr_parts(dict(client), split=split, version=version)
+    if part < 0 or part >= len(parts):
+        raise HTTPException(status_code=404, detail="QR part not found")
 
-    qr_payload = generate_amnezia_deeplink(
-        config_text,
-        version=version,
-        client_public_key=client["public_key"],
-        split_tunnel=split,
-        client_name=client["name"],
-    ) or config_text
-    
-    import io
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=7,
-        border=3,
-    )
-    qr.add_data(qr_payload)
-    qr.make(fit=True)
-    qr_img = qr.make_image(fill_color="black", back_color="white")
-    
-    buf = io.BytesIO()
-    qr_img.save(buf, format="PNG")
-    buf.seek(0)
-    
     from fastapi import Response
-    return Response(content=buf.getvalue(), media_type="image/png")
+    return Response(
+        content=render_qr_png(parts[part]),
+        media_type="image/png",
+        headers={
+            "X-Amnezia-QR-Part": str(part + 1),
+            "X-Amnezia-QR-Count": str(len(parts)),
+        },
+    )
 
 # --- СТРАНИЦЫ АВТОРИЗАЦИИ ---
 
@@ -1052,6 +1087,7 @@ async def panel_settings_page(
         "panel_port": get_panel_setting("panel_port", os.getenv("PANEL_PORT", "8080")),
         "panel_domain": get_panel_setting("panel_domain", ""),
         "panel_theme": get_panel_setting("panel_theme", request.cookies.get("panel_theme", "light")),
+        "panel_language": get_panel_setting("panel_language", request.cookies.get("panel_lang", "ru")),
         "telegram_notifications_enabled": get_panel_setting("telegram_notifications_enabled", "0"),
         "telegram_admin_bot_token": get_panel_setting("telegram_admin_bot_token", ""),
         "telegram_admin_chat_id": get_panel_setting("telegram_admin_chat_id", ""),
@@ -1073,6 +1109,7 @@ async def save_panel_settings(
     panel_port: str = Form(...),
     panel_domain: str = Form(""),
     panel_theme: str = Form("light"),
+    panel_language: str = Form("ru"),
     telegram_notifications_enabled: str = Form("0"),
     telegram_admin_bot_token: str = Form(""),
     telegram_admin_chat_id: str = Form(""),
@@ -1085,6 +1122,7 @@ async def save_panel_settings(
     port_value = panel_port.strip()
     domain_value = panel_domain.strip().lower()
     theme_value = panel_theme.strip().lower()
+    language_value = panel_language.strip().lower()
     telegram_enabled_value = "1" if telegram_notifications_enabled == "1" else "0"
     telegram_token_value = telegram_admin_bot_token.strip()
     telegram_chat_id_value = telegram_admin_chat_id.strip()
@@ -1093,6 +1131,8 @@ async def save_panel_settings(
         port_value = _validated_int_setting("Порт панели", port_value, 1, 65535)
         if theme_value not in {"light", "dark"}:
             raise ValueError("Тема панели должна быть light или dark")
+        if language_value not in {"ru", "en"}:
+            raise ValueError("Panel language must be ru or en")
         reserved_ports = {
             "22": "SSH",
             get_vpn_setting("port", str(AWG_PORT)): "Amnezia 2.0",
@@ -1107,6 +1147,7 @@ async def save_panel_settings(
         set_panel_setting("panel_port", port_value)
         set_panel_setting("panel_domain", domain_value)
         set_panel_setting("panel_theme", theme_value)
+        set_panel_setting("panel_language", language_value)
         set_panel_setting("telegram_notifications_enabled", telegram_enabled_value)
         set_panel_setting("telegram_admin_bot_token", telegram_token_value)
         set_panel_setting("telegram_admin_chat_id", telegram_chat_id_value)
@@ -1125,6 +1166,7 @@ async def save_panel_settings(
         "panel_port": port_value,
         "panel_domain": domain_value,
         "panel_theme": theme_value,
+        "panel_language": language_value,
         "telegram_notifications_enabled": telegram_enabled_value,
         "telegram_admin_bot_token": telegram_token_value,
         "telegram_admin_chat_id": telegram_chat_id_value,
@@ -1142,6 +1184,7 @@ async def save_panel_settings(
         }
     )
     response.set_cookie("panel_theme", theme_value, max_age=60 * 60 * 24 * 365, samesite="lax")
+    response.set_cookie("panel_lang", language_value, max_age=60 * 60 * 24 * 365, samesite="lax")
     return response
 
 @router.post("/settings/panel/theme")

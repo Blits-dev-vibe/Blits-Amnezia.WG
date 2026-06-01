@@ -1,4 +1,5 @@
 import os
+import secrets
 from pathlib import Path
 import urllib.request
 import logging
@@ -25,14 +26,17 @@ CLIENTS_DIR.mkdir(parents=True, exist_ok=True)
 QR_DIR.mkdir(parents=True, exist_ok=True)
 
 # Секретный ключ для JWT
-SECRET_KEY = os.getenv("SECRET_KEY", "amnezia-super-secret-panel-jwt-key-2026")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_urlsafe(32)
+    logger.warning("SECRET_KEY is not set; generated a temporary key for this process.")
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 часа
 
 # Токен авторизации для API Telegram-бота
 TELEGRAM_API_TOKEN = os.getenv(
     "TELEGRAM_API_TOKEN",
-    os.getenv("API_TOKEN", "tg_bearer_token_default_value_change_it"),
+    os.getenv("API_TOKEN", ""),
 )
 
 # Параметры AmneziaWG

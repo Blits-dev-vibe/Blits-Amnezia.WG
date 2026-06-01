@@ -31,13 +31,13 @@ def _split_endpoint(endpoint: str) -> tuple[str, int]:
     return host.strip(), port
 
 
-def generate_amnezia_deeplink(
+def build_amnezia_server_json(
     config_text: str,
     version: str = "1.0",
     client_public_key: str = "",
     split_tunnel: bool = False,
     client_name: str = "Client",
-) -> str | None:
+) -> dict | None:
     """
     Generate a native Amnezia import key.
 
@@ -121,10 +121,53 @@ def generate_amnezia_deeplink(
             "splitTunnelType": 1 if split_tunnel else 0,
         }
 
-        json_bytes = json.dumps(server_json, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        compressed = struct.pack(">I", len(json_bytes)) + zlib.compress(json_bytes)
-        encoded = base64.urlsafe_b64encode(compressed).decode("utf-8").rstrip("=")
-        return f"vpn://{encoded}"
+        return server_json
     except Exception as exc:
-        logger.error("Failed to generate Amnezia vpn:// key v%s: %s", version, exc)
+        logger.error("Failed to build Amnezia config v%s: %s", version, exc)
         return None
+
+
+def generate_amnezia_payload(
+    config_text: str,
+    version: str = "1.0",
+    client_public_key: str = "",
+    split_tunnel: bool = False,
+    client_name: str = "Client",
+) -> bytes | None:
+    server_json = build_amnezia_server_json(
+        config_text,
+        version=version,
+        client_public_key=client_public_key,
+        split_tunnel=split_tunnel,
+        client_name=client_name,
+    )
+    if not server_json:
+        return None
+    json_bytes = json.dumps(server_json, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return struct.pack(">I", len(json_bytes)) + zlib.compress(json_bytes)
+
+
+def generate_amnezia_deeplink(
+    config_text: str,
+    version: str = "1.0",
+    client_public_key: str = "",
+    split_tunnel: bool = False,
+    client_name: str = "Client",
+) -> str | None:
+    """
+    Generate a native Amnezia import key.
+
+    The payload is the same qCompress-compatible byte format that AmneziaVPN
+    exports and expects when it scans multi-part QR codes.
+    """
+    payload = generate_amnezia_payload(
+        config_text,
+        version=version,
+        client_public_key=client_public_key,
+        split_tunnel=split_tunnel,
+        client_name=client_name,
+    )
+    if not payload:
+        return None
+    encoded = base64.urlsafe_b64encode(payload).decode("utf-8").rstrip("=")
+    return f"vpn://{encoded}"

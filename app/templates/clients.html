@@ -9,15 +9,52 @@
     <style>
         .modal-body-layout {
             display: grid;
-            grid-template-columns: minmax(0, 190px) minmax(0, 1fr);
-            gap: 18px;
+            grid-template-columns: minmax(220px, 240px) minmax(0, 1fr);
+            gap: 28px;
+            align-items: start;
         }
+        .modal-body-layout > div { min-width: 0; }
         .qr-version-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
+            gap: 12px;
             width: 100%;
-            max-width: 330px;
+            max-width: 300px;
+        }
+        .qr-version-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
+        .qr-part-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            min-height: 28px;
+        }
+        .qr-hide-btn {
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-color);
+            border-radius: 7px;
+            background: var(--gray-light);
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            font-size: 11px;
+            line-height: 1;
+        }
+        .qr-hide-btn:hover {
+            color: var(--danger);
+            border-color: var(--danger);
+            background: rgba(239, 68, 68, 0.08);
         }
         .status-cell {
             display: flex;
@@ -334,11 +371,11 @@
                         <span style="font-weight: 600; font-size: 14px; text-align: center;">QR-коды для AmneziaVPN</span>
                         <p style="margin: 0; font-size: 12px; color: var(--text-muted); text-align: center;">Нажми показать, затем сканируй части по кругу.</p>
                         <div class="qr-version-grid">
-                            <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                            <div class="qr-version-cell">
                                 <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Legacy</span>
                                 <div id="modal-qr-series-legacy" class="qr-series"></div>
                             </div>
-                            <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                            <div class="qr-version-cell">
                                 <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Amnezia 2.0</span>
                                 <div id="modal-qr-series-v2" class="qr-series"></div>
                             </div>
@@ -510,7 +547,8 @@
             const hide = document.createElement('button');
             hide.type = 'button';
             hide.className = 'qr-hide-btn';
-            hide.textContent = 'Скрыть';
+            hide.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+            hide.title = 'Скрыть QR';
             hide.onclick = () => {
                 clearInterval(qrTimers[stateKey]);
                 delete qrTimers[stateKey];

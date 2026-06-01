@@ -299,9 +299,11 @@
                                                 {
                                                   "name": "{{ client.name }}",
                                                   "config_text": {{ client.config_text | tojson }},
+                                                  "config_text_legacy": {{ client.config_text_legacy | tojson }},
                                                   "deep_link": "{{ client.deep_link }}",
                                                   "deep_link_v2": "{{ client.deep_link_v2 }}",
                                                   "config_text_split": {{ client.config_text_split | tojson }},
+                                                  "config_text_split_legacy": {{ client.config_text_split_legacy | tojson }},
                                                   "deep_link_split": "{{ client.deep_link_split }}",
                                                   "deep_link_split_v2": "{{ client.deep_link_split_v2 }}"
                                                 }
@@ -360,7 +362,13 @@
 
                 <div class="modal-body-layout">
                     <div style="display: flex; flex-direction: column; gap: 12px;">
-                        <span style="font-weight: 600; font-size: 14px;">Конфигурация AmneziaWG:</span>
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <span id="modal-config-label" style="font-weight: 600; font-size: 14px;">Конфигурация Amnezia 2.0:</span>
+                            <div style="display: flex; background-color: var(--gray-light); padding: 2px; border-radius: 6px; border: 1px solid var(--border-color);">
+                                <button id="config-tab-legacy" class="btn btn-sm" style="padding: 4px 8px; font-size: 11px; border-radius: 4px; background-color: transparent; color: var(--text-muted); border: none; cursor: pointer;" onclick="switchConfigVersion('1.0')">Amnezia 1</button>
+                                <button id="config-tab-v2" class="btn btn-sm" style="padding: 4px 8px; font-size: 11px; border-radius: 4px; background-color: var(--primary); color: white; border: none; cursor: pointer;" onclick="switchConfigVersion('2.0')">Amnezia 2</button>
+                            </div>
+                        </div>
                         <div id="modal-config-text" class="config-preview-box"></div>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-primary btn-sm" onclick="copyConfigToClipboard()"><i class="fa-solid fa-copy"></i> Копировать конфиг</button>
@@ -372,7 +380,7 @@
                         <p style="margin: 0; font-size: 12px; color: var(--text-muted); text-align: center;">Нажми показать, затем сканируй части по кругу.</p>
                         <div class="qr-version-grid">
                             <div class="qr-version-cell">
-                                <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Legacy</span>
+                                <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Amnezia 1 / Legacy</span>
                                 <div id="modal-qr-series-legacy" class="qr-series"></div>
                             </div>
                             <div class="qr-version-cell">
@@ -389,8 +397,8 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
                         <span style="font-weight: 600; font-size: 14px;"><i class="fa-solid fa-mobile-screen-button"></i> Ссылка для импорта в приложение:</span>
                         <div style="display: flex; background-color: var(--gray-light); padding: 2px; border-radius: 6px; border: 1px solid var(--border-color);">
-                            <button id="tab-legacy" class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; border-radius: 4px; background-color: transparent; color: var(--text-muted); border: none; cursor: pointer;" onclick="switchDeeplinkVersion('1.0')">Legacy</button>
-                            <button id="tab-v2" class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; border-radius: 4px; background-color: var(--primary); color: white; border: none; cursor: pointer;" onclick="switchDeeplinkVersion('2.0')">Amnezia 2.0</button>
+                            <button id="tab-legacy" class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; border-radius: 4px; background-color: transparent; color: var(--text-muted); border: none; cursor: pointer;" onclick="switchConfigVersion('1.0')">Amnezia 1 / Legacy</button>
+                            <button id="tab-v2" class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; border-radius: 4px; background-color: var(--primary); color: white; border: none; cursor: pointer;" onclick="switchConfigVersion('2.0')">Amnezia 2.0</button>
                         </div>
                     </div>
                     <div style="display: flex; gap: 8px; width: 100%;">
@@ -419,9 +427,11 @@
 
         let activeClientId = "";
         let activeConfigText = "";
+        let activeConfigTextLegacy = "";
         let activeDeeplinkLegacy = "";
         let activeDeeplinkV2 = "";
         let activeConfigTextSplit = "";
+        let activeConfigTextSplitLegacy = "";
         let activeDeeplinkSplitLegacy = "";
         let activeDeeplinkSplitV2 = "";
         let currentMode = "full";
@@ -435,9 +445,11 @@
             const clientData = JSON.parse(dataEl.textContent);
             activeClientId = clientId;
             activeConfigText = clientData.config_text;
+            activeConfigTextLegacy = clientData.config_text_legacy || "";
             activeDeeplinkLegacy = clientData.deep_link || "";
             activeDeeplinkV2 = clientData.deep_link_v2 || "";
             activeConfigTextSplit = clientData.config_text_split || "";
+            activeConfigTextSplitLegacy = clientData.config_text_split_legacy || "";
             activeDeeplinkSplitLegacy = clientData.deep_link_split || "";
             activeDeeplinkSplitV2 = clientData.deep_link_split_v2 || "";
             currentMode = "full";
@@ -458,22 +470,29 @@
 
         function updateModalUI() {
             const configPreview = document.getElementById('modal-config-text');
+            const configLabel = document.getElementById('modal-config-label');
             const downloadBtn = document.getElementById('modal-download-link');
             const deeplinkInput = document.getElementById('modal-deeplink-input');
             const deeplinkBtn = document.getElementById('modal-deeplink-btn');
             const tabLegacy = document.getElementById('tab-legacy');
             const tabV2 = document.getElementById('tab-v2');
+            const configTabLegacy = document.getElementById('config-tab-legacy');
+            const configTabV2 = document.getElementById('config-tab-v2');
             const toggleFull = document.getElementById('toggle-mode-full');
             const toggleSplit = document.getElementById('toggle-mode-split');
 
             currentMode === "full" ? paintToggle(toggleFull, toggleSplit) : paintToggle(toggleSplit, toggleFull);
             currentVersion === "1.0" ? paintToggle(tabLegacy, tabV2) : paintToggle(tabV2, tabLegacy);
+            currentVersion === "1.0" ? paintToggle(configTabLegacy, configTabV2) : paintToggle(configTabV2, configTabLegacy);
 
-            const configText = currentMode === "full" ? activeConfigText : activeConfigTextSplit;
+            const configText = getCurrentConfigText();
             const link = currentMode === "full"
                 ? (currentVersion === "1.0" ? activeDeeplinkLegacy : activeDeeplinkV2)
                 : (currentVersion === "1.0" ? activeDeeplinkSplitLegacy : activeDeeplinkSplitV2);
 
+            configLabel.innerText = currentVersion === "1.0"
+                ? "Конфигурация Amnezia 1 / Legacy:"
+                : "Конфигурация Amnezia 2.0:";
             configPreview.innerText = configText;
             const downloadParams = new URLSearchParams();
             downloadParams.set('version', currentVersion);
@@ -516,7 +535,7 @@
         function resetQrButton(version, containerId) {
             const container = document.getElementById(containerId);
             if (!container) return;
-            const label = version === '1.0' ? 'Legacy QR' : 'Amnezia 2.0 QR';
+            const label = version === '1.0' ? 'Amnezia 1 / Legacy QR' : 'Amnezia 2.0 QR';
             container.innerHTML = '';
             const button = document.createElement('button');
             button.type = 'button';
@@ -596,9 +615,16 @@
             updateModalUI();
         }
 
-        function switchDeeplinkVersion(version) {
+        function switchConfigVersion(version) {
             currentVersion = version;
             updateModalUI();
+        }
+
+        function getCurrentConfigText() {
+            if (currentMode === "split") {
+                return currentVersion === "1.0" ? (activeConfigTextSplitLegacy || activeConfigTextSplit) : activeConfigTextSplit;
+            }
+            return currentVersion === "1.0" ? (activeConfigTextLegacy || activeConfigText) : activeConfigText;
         }
 
         function copyTextToClipboard(text, successMessage) {
@@ -623,7 +649,7 @@
         }
 
         function copyConfigToClipboard() {
-            copyTextToClipboard(currentMode === "full" ? activeConfigText : activeConfigTextSplit, 'Конфиг скопирован.');
+            copyTextToClipboard(getCurrentConfigText(), 'Конфиг скопирован.');
         }
 
         function copyDeeplinkToClipboard() {

@@ -9,7 +9,7 @@
     <style>
         .modal-body-layout {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 200px;
+            grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
             gap: 24px;
         }
         .status-cell {
@@ -322,9 +322,18 @@
                             <a id="modal-download-link" href="#" class="btn btn-secondary btn-sm"><i class="fa-solid fa-download"></i> Скачать .conf</a>
                         </div>
                     </div>
-                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;">
-                        <span style="font-weight: 600; font-size: 14px; text-align: center;">QR-код для импорта</span>
-                        <div class="qr-box"><img id="modal-qr-img" src="" alt="QR Code"></div>
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
+                        <span style="font-weight: 600; font-size: 14px; text-align: center;">QR-коды для AmneziaVPN</span>
+                        <div style="display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 10px; width: 100%; max-width: 360px;">
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                                <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Legacy</span>
+                                <div class="qr-box"><img id="modal-qr-img-legacy" src="" alt="Legacy QR Code"></div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                                <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Amnezia 2.0</span>
+                                <div class="qr-box"><img id="modal-qr-img-v2" src="" alt="Amnezia 2.0 QR Code"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -400,7 +409,8 @@
         function updateModalUI() {
             const configPreview = document.getElementById('modal-config-text');
             const downloadBtn = document.getElementById('modal-download-link');
-            const qrImg = document.getElementById('modal-qr-img');
+            const qrImgLegacy = document.getElementById('modal-qr-img-legacy');
+            const qrImgV2 = document.getElementById('modal-qr-img-v2');
             const deeplinkInput = document.getElementById('modal-deeplink-input');
             const deeplinkBtn = document.getElementById('modal-deeplink-btn');
             const tabLegacy = document.getElementById('tab-legacy');
@@ -422,11 +432,17 @@
             if (currentMode === "split") downloadParams.set('split', 'true');
             downloadBtn.href = '/clients/' + activeClientId + '/download?' + downloadParams.toString();
 
-            const qrParams = new URLSearchParams();
-            qrParams.set('version', currentVersion);
-            qrParams.set('_', Date.now().toString());
-            if (currentMode === "split") qrParams.set('split', 'true');
-            qrImg.src = '/clients/' + activeClientId + '/qr?' + qrParams.toString();
+            const qrParamsLegacy = new URLSearchParams();
+            qrParamsLegacy.set('version', '1.0');
+            qrParamsLegacy.set('_', Date.now().toString());
+            if (currentMode === "split") qrParamsLegacy.set('split', 'true');
+            qrImgLegacy.src = '/clients/' + activeClientId + '/qr?' + qrParamsLegacy.toString();
+
+            const qrParamsV2 = new URLSearchParams();
+            qrParamsV2.set('version', '2.0');
+            qrParamsV2.set('_', Date.now().toString());
+            if (currentMode === "split") qrParamsV2.set('split', 'true');
+            qrImgV2.src = '/clients/' + activeClientId + '/qr?' + qrParamsV2.toString();
 
             deeplinkInput.value = link || "Не удалось сгенерировать ссылку";
             deeplinkBtn.href = link || "#";

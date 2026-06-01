@@ -712,7 +712,7 @@ body {
     background-color: var(--bg-main);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    padding: 16px;
+    padding: 10px;
     font-family: 'Courier New', Courier, monospace;
     font-size: 12px;
     white-space: pre-wrap;
@@ -735,7 +735,7 @@ body {
 }
 
 .qr-box img {
-    max-width: 180px;
+    max-width: 145px;
     height: auto;
 }
 

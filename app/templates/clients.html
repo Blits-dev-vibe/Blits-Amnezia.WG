@@ -381,6 +381,7 @@
         let activeDeeplinkSplitV2 = "";
         let currentMode = "full";
         let currentVersion = "2.0";
+        let qrSeriesState = {};
 
         function openConfigModal(clientId) {
             const dataEl = document.getElementById('data-' + clientId);
@@ -395,6 +396,7 @@
             activeDeeplinkSplitV2 = clientData.deep_link_split_v2 || "";
             currentMode = "full";
             currentVersion = "2.0";
+            qrSeriesState = {};
             document.getElementById('modal-title-text').innerText = 'Конфигурация VPN: ' + clientData.name;
             updateModalUI();
             document.getElementById('config-modal').classList.add('active');
@@ -454,34 +456,74 @@
                 const response = await fetch('/clients/' + activeClientId + '/qr-series?' + params.toString());
                 if (!response.ok) throw new Error('QR series request failed');
                 const series = await response.json();
-                container.innerHTML = '';
-                series.urls.forEach((url, index) => {
-                    const item = document.createElement('div');
-                    item.className = 'qr-part';
-
-                    const label = document.createElement('span');
-                    label.className = 'qr-part-label';
-                    label.textContent = 'QR ' + (index + 1) + '/' + series.count;
-
-                    const box = document.createElement('div');
-                    box.className = 'qr-box';
-
-                    const img = document.createElement('img');
-                    img.alt = 'Amnezia QR ' + (index + 1) + ' of ' + series.count;
-                    img.src = url + '&_=' + Date.now();
-
-                    box.appendChild(img);
-                    item.appendChild(label);
-                    item.appendChild(box);
-                    container.appendChild(item);
-                });
+                const stateKey = version + ':' + currentMode;
+                const currentIndex = Math.min(qrSeriesState[stateKey] || 0, Math.max(series.count - 1, 0));
+                qrSeriesState[stateKey] = currentIndex;
+                drawQrPart(container, series, stateKey);
             } catch (error) {
                 container.innerHTML = '<span class="qr-loading">' + t('QR недоступен') + '</span>';
             }
         }
 
+        function drawQrPart(container, series, stateKey) {
+            const count = series.count || 1;
+            const index = Math.min(qrSeriesState[stateKey] || 0, count - 1);
+            const url = series.urls[index];
+            const cacheBuster = Date.now();
+            container.innerHTML = '';
+
+            const label = document.createElement('span');
+            label.className = 'qr-part-label';
+            label.textContent = 'QR ' + (index + 1) + '/' + count;
+
+            const box = document.createElement('div');
+            box.className = 'qr-box';
+
+            const img = document.createElement('img');
+            img.alt = 'Amnezia QR ' + (index + 1) + ' of ' + count;
+            img.src = url + (url.includes('?') ? '&' : '?') + '_=' + cacheBuster;
+            box.appendChild(img);
+
+            const controls = document.createElement('div');
+            controls.className = 'qr-controls';
+
+            const prev = document.createElement('button');
+            prev.type = 'button';
+            prev.className = 'qr-nav-btn';
+            prev.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+            prev.disabled = index === 0;
+            prev.title = 'Предыдущий QR';
+            prev.onclick = () => {
+                qrSeriesState[stateKey] = Math.max(0, index - 1);
+                drawQrPart(container, series, stateKey);
+            };
+
+            const next = document.createElement('button');
+            next.type = 'button';
+            next.className = 'qr-nav-btn';
+            next.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+            next.disabled = index >= count - 1;
+            next.title = 'Следующий QR';
+            next.onclick = () => {
+                qrSeriesState[stateKey] = Math.min(count - 1, index + 1);
+                drawQrPart(container, series, stateKey);
+            };
+
+            const hint = document.createElement('span');
+            hint.className = 'qr-step-hint';
+            hint.textContent = index < count - 1 ? 'После скана нажми дальше' : 'Последний QR';
+
+            controls.appendChild(prev);
+            controls.appendChild(hint);
+            controls.appendChild(next);
+            container.appendChild(label);
+            container.appendChild(box);
+            container.appendChild(controls);
+        }
+
         function switchRoutingMode(mode) {
             currentMode = mode;
+            qrSeriesState = {};
             updateModalUI();
         }
 

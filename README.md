@@ -1,25 +1,74 @@
 # Blitz AmneziaWG Panel
 
-Clean web panel for AmneziaWG with two compatible profiles:
+Веб-панель для AmneziaWG с установкой одной командой, отдельными конфигурациями для Amnezia 1 / Legacy и Amnezia 2.0, QR-импортом, split tunneling, HTTPS, секретным web path и серверным меню `blits`.
 
-- **Amnezia 2.0**: full AWG profile with S3/S4 parameters.
-- **Legacy / Amnezia 1.x**: separate profile without S3/S4 for older clients.
-- Full tunnel and split tunnel client exports.
-- Native AmneziaVPN import links and multi-part QR codes.
-- Russian / English panel language switch in settings.
-- Docker-based web panel installation.
-- Secret web path gate, similar to 3x-ui.
-- Server management menu with the `blits` command.
+Проект сделан для быстрого запуска личной VPN-панели без ручной подготовки сервера: установщик сам ставит Docker, AmneziaWG, создает системные конфиги, запускает web-панель и показывает готовую ссылку входа.
 
-## One-command install
+## Возможности
 
-Run as `root` on Ubuntu/Debian:
+- **Две версии AmneziaWG-конфига**
+  - Amnezia 2.0: полный профиль с `S3/S4`.
+  - Amnezia 1 / Legacy: отдельный профиль без `S3/S4`, чтобы старый клиент не ломался.
+- **Два QR-кода на каждую версию**
+  - AmneziaVPN может просить несколько частей QR.
+  - Панель показывает QR по кругу, с автосменой каждые 2 секунды.
+- **Full tunnel и split tunnel**
+  - Полный туннель для всего трафика.
+  - Раздельное туннелирование с маршрутами и доменами.
+  - Быстрые пресеты: Telegram, Discord, YouTube, OpenAI, Cloudflare.
+- **Управление клиентами**
+  - Создание ключей через мастер.
+  - Лимит срока и трафика.
+  - Проверка клиента: peer, handshake, трафик, Amnezia 1/2, split/full.
+- **Диагностика**
+  - Проверка VPN-конфигурации.
+  - Проверка Legacy без `S3/S4`.
+  - Статус безопасности панели.
+- **Безопасность панели**
+  - Секретный web path, похожий по идее на 3x-ui.
+  - Смена пароля администратора.
+  - Защита входа от перебора.
+  - HTTPS на IP или домене.
+- **Серверное меню**
+  - Команда `blits` для управления панелью из терминала.
+  - Смена порта, домена, web path, API token, пароля, перезапуск панели.
+- **Русский и английский язык**
+  - Переключение языка в настройках панели.
+  - Тема панели: светлая / темная.
+
+## Быстрая установка
+
+Запускать на сервере от `root`.
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/kuznecovpasa807-ui/Blits-Amnezia.WG/main/install.sh)
 ```
 
-If the repository is private, keep it private and pass a GitHub token only for the install command:
+Установщик:
+
+- скачает проект;
+- поставит Docker, если его нет;
+- поставит и настроит AmneziaWG;
+- создаст конфиги `awg0` и `awg_legacy`;
+- создаст секреты панели;
+- запустит контейнер web-панели;
+- покажет ссылку для входа.
+
+После установки открывай именно URL, который вывел установщик. Обычно он выглядит так:
+
+```text
+https://SERVER_IP/blits-panel
+```
+
+или с рандомным секретным путем:
+
+```text
+http://SERVER_IP/a1b2c3d4e5f6
+```
+
+## Установка приватного репозитория
+
+Если репозиторий приватный, не меняй приватность. Используй GitHub token только на время установки:
 
 ```bash
 export GITHUB_TOKEN='YOUR_GITHUB_TOKEN'
@@ -27,57 +76,103 @@ bash -c "$(curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" https://raw.git
 unset GITHUB_TOKEN
 ```
 
-The installer downloads the project, installs Docker if needed, installs/configures AmneziaWG, creates panel secrets, starts the panel, and asks only for the installation choices it cannot safely guess.
-It also creates a random web path. Open the panel only through the printed URL, for example `http://SERVER_IP/1a2b3c4d5e6f7a8b`.
+Не сохраняй GitHub token в истории команд, файлах проекта или скриншотах.
 
-## Server menu
+## Вход в панель
 
-Run on the server as `root`:
+После установки панель попросит логин и пароль администратора.
+
+Сразу после первого входа:
+
+1. смени пароль администратора;
+2. проверь секретный web path;
+3. включи HTTPS, если он еще не включен;
+4. открой `Диагностика`;
+5. создай тестовый клиент и проверь QR.
+
+## Amnezia 1 и Amnezia 2.0
+
+В проекте используются две разные серверные конфигурации:
+
+| Версия | Интерфейс | Порт по умолчанию | Особенность |
+| --- | --- | --- | --- |
+| Amnezia 2.0 | `awg0` | `51820/udp` | полный профиль с `S3/S4` |
+| Amnezia 1 / Legacy | `awg_legacy` | `43913/udp` | отдельный профиль без `S3/S4` |
+
+Это важно: Amnezia 1 может не подключаться, если ей отдать конфиг с параметрами, которые она не понимает. Поэтому Legacy-конфиг отделен от Amnezia 2.0.
+
+## QR-коды
+
+AmneziaVPN может импортировать конфиг частями. Поэтому панель генерирует не один QR, а серию:
+
+- Amnezia 1 / Legacy: `QR 1/2`, затем `QR 2/2`;
+- Amnezia 2.0: `QR 1/2`, затем `QR 2/2`.
+
+Сканируй QR одной версии по порядку. Не смешивай части Legacy и Amnezia 2.0 в одном импорте.
+
+## Split tunneling
+
+В настройках VPN есть раздел `Раздельное туннелирование`.
+
+Можно указывать:
+
+- CIDR-сети;
+- отдельные IP;
+- домены.
+
+Примеры:
+
+```text
+1.1.1.1/32
+8.8.8.8/32
+telegram.org
+openai.com
+```
+
+При генерации ключа домены преобразуются сервером в IP-маршруты.
+
+## Команда `blits`
+
+На сервере можно открыть меню:
 
 ```bash
 blits
 ```
 
-The menu can show the current panel URL, change the web port, set/change a domain, show or regenerate the secret web path, regenerate the API token, change the admin password, and restart the panel.
-It can also enable HTTPS directly on the server IP address using a Let's Encrypt short-lived IP certificate.
+Меню умеет:
 
-IP certificates are valid for about 6 days, so `blits` installs a renewal cron job when this mode is enabled.
+- показать текущий URL панели;
+- показать статус сервисов;
+- поменять порт панели;
+- поменять домен;
+- задать web path;
+- перегенерировать web path;
+- перегенерировать API token;
+- сменить пароль администратора;
+- перезапустить панель;
+- включить HTTPS-сертификат для IP.
 
-## Update
+## Обновление панели
 
-From the server directory:
+На сервере:
+
+```bash
+cd /root/Blits-Amnezia.WG
+git pull origin main
+docker compose --profile ssl up -d --build
+```
+
+Если панель установлена в `/opt/blitz-amnezia-panel`, используй эту папку:
 
 ```bash
 cd /opt/blitz-amnezia-panel
 git pull origin main
-docker compose up -d --build
+docker compose --profile ssl up -d --build
 ```
 
-If the old install was cloned into another folder, run the same commands there.
+В web-панели есть блок `Обновление панели`. По умолчанию он показывает безопасную команду для терминала. Автообновление из web UI выключено, чтобы панель случайно не получила полный контроль над сервером.
 
-## Ports
-
-- Web panel: `80` in IP mode, or internal `1010` behind Nginx/domain mode.
-- Amnezia 2.0: `51820/udp` by default.
-- Legacy / Amnezia 1.x: `43913/udp` by default.
-
-## QR import
-
-AmneziaVPN may ask for more than one QR code. The panel now generates a QR series for every profile:
-
-- Legacy: scan `QR 1/N`, then `QR 2/N`, and so on.
-- Amnezia 2.0: scan its own `QR 1/N`, then the next parts.
-
-Do not mix Legacy and 2.0 parts in one import.
-
-## Security notes
-
-- Runtime data is stored in `data/` and is ignored by Git.
-- `.env`, keys, database files, generated configs, and backups are ignored by Git.
-- API tokens and JWT secrets are generated during install and written to `data/panel.env`.
-- Do not commit real GitHub tokens, root passwords, Telegram bot tokens, or generated client configs.
-
-## Useful checks
+## Проверка после установки
 
 ```bash
 docker compose ps
@@ -85,3 +180,63 @@ systemctl status awg-quick@awg0 --no-pager -l
 systemctl status awg-quick@awg_legacy --no-pager -l
 awg show
 ```
+
+Ожидаемо:
+
+- `amnezia-panel` running;
+- `nginx-proxy` running, если включен HTTPS;
+- `awg-quick@awg0` active;
+- `awg-quick@awg_legacy` active;
+- в `awg show` видны интерфейсы `awg0` и `awg_legacy`.
+
+## Структура проекта
+
+```text
+app/                    web-панель FastAPI
+app/templates/           HTML-шаблоны панели
+app/static/              CSS, JS и визуальные ресурсы
+data/                    runtime-данные панели, не коммитятся
+install.sh               установка панели одной командой
+install_amneziawg.sh     установка и настройка AmneziaWG
+blits                    серверное меню
+docker-compose.yml       запуск панели и nginx-proxy
+nginx.conf.template      шаблон HTTPS/proxy
+```
+
+## Безопасность
+
+В Git не должны попадать:
+
+- root-пароли;
+- GitHub tokens;
+- Telegram bot tokens;
+- API tokens;
+- приватные ключи клиентов;
+- `data/panel.db`;
+- `data/panel.env`;
+- сгенерированные `.conf`;
+- backup-архивы.
+
+Папка `data/` и чувствительные файлы уже добавлены в `.gitignore`.
+
+## Частые вопросы
+
+### Почему два QR, а не один?
+
+Потому что AmneziaVPN иногда импортирует большой конфиг по частям. Панель показывает серию QR для одной версии. Сканируй их по порядку.
+
+### Почему есть Amnezia 1 и Amnezia 2.0?
+
+Они используют похожий AmneziaWG-конфиг, но старый клиент Amnezia 1 не должен получать `S3/S4`. Поэтому для него есть отдельный Legacy-интерфейс.
+
+### Можно ли ставить без перезагрузки сервера?
+
+Да. Панель и интерфейсы можно обновлять без перезагрузки сервера. В обычном сценарии достаточно перезапуска контейнера и sync/restart AmneziaWG-интерфейсов.
+
+### Почему Security status может быть не полностью зеленым?
+
+Например, если панель работает по IP без домена, пункт `Домен панели` будет предупреждением. Это не ломает VPN, но домен удобнее для постоянной эксплуатации.
+
+## Лицензия
+
+Личный проект для установки и управления AmneziaWG-панелью.

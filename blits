@@ -49,6 +49,35 @@ public_ip() {
     curl -fsS https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}'
 }
 
+generate_web_path() {
+    printf '/blits-%s\n' "$(openssl rand -hex 16)"
+}
+
+wait_for_apt_locks() {
+    local waited=0
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+          fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
+          fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+        if [ "$waited" -ge 300 ]; then
+            echo "apt/dpkg is still busy after 5 minutes. Try again when system updates finish." >&2
+            return 1
+        fi
+        echo "apt/dpkg is busy with system updates, waiting 10 seconds..." >&2
+        sleep 10
+        waited=$((waited + 10))
+    done
+}
+
+apt_update() {
+    wait_for_apt_locks
+    DEBIAN_FRONTEND=noninteractive apt-get update
+}
+
+apt_install() {
+    wait_for_apt_locks
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
+}
+
 panel_url() {
     local port web_path domain scheme host https
     port="$(get_env PANEL_PORT)"
@@ -120,19 +149,25 @@ PY
 }
 
 regenerate_web_path() {
-    local web_path
-    web_path="/$(openssl rand -hex 8)"
+    local old_path web_path
+    old_path="$(get_env PANEL_WEB_PATH)"
+    web_path="$(generate_web_path)"
     set_env PANEL_WEB_PATH "$web_path"
     restart_panel
+    echo "Old web path: ${old_path:-not set}"
     echo "New web path: $web_path"
     echo "URL: $(panel_url)"
 }
 
 set_web_path() {
-    read -rp "New web path, for example /my-secret-panel: " web_path
+    read -rp "New web path, for example /blits-my-secret-panel: " web_path
     web_path="/${web_path#/}"
     if [ "$web_path" = "/" ]; then
         echo "Empty path is not allowed."
+        return
+    fi
+    if ! [[ "$web_path" =~ ^/[A-Za-z0-9._~-]+$ ]]; then
+        echo "Use only letters, numbers, dots, underscores, dashes and tildes."
         return
     fi
     set_env PANEL_WEB_PATH "$web_path"
@@ -156,8 +191,8 @@ install_certbot_ip() {
         return
     fi
 
-    apt-get update >&2
-    apt-get install -y python3 python3-venv python3-pip openssl curl >&2
+    apt_update >&2
+    apt_install python3 python3-venv python3-pip openssl curl >&2
     python3 -m venv /opt/blits-certbot >&2
     /opt/blits-certbot/bin/pip install --upgrade pip >&2
     /opt/blits-certbot/bin/pip install --upgrade "certbot>=5.4" >&2

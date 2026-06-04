@@ -16,6 +16,35 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+wait_for_apt_locks() {
+    local waited=0
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+          fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
+          fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+        if [ "$waited" -ge 300 ]; then
+            echo -e "${RED}apt/dpkg is still busy after 5 minutes. Wait for system updates to finish and run install.sh again.${NC}" >&2
+            return 1
+        fi
+        echo -e "${YELLOW}apt/dpkg is busy with system updates, waiting 10 seconds...${NC}"
+        sleep 10
+        waited=$((waited + 10))
+    done
+}
+
+apt_update() {
+    wait_for_apt_locks
+    DEBIAN_FRONTEND=noninteractive apt-get update
+}
+
+apt_install() {
+    wait_for_apt_locks
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
+}
+
+generate_web_path() {
+    printf '/blits-%s\n' "$(openssl rand -hex 16)"
+}
+
 ensure_project_files() {
     if [ -f "./docker-compose.yml" ] && [ -f "./Dockerfile" ] && [ -d "./app" ] && [ -f "./install_amneziawg.sh" ]; then
         echo -e "${GREEN}Файлы проекта найдены в текущей папке: $(pwd)${NC}"
@@ -23,8 +52,8 @@ ensure_project_files() {
     fi
 
     echo -e "${YELLOW}Файлы проекта рядом с install.sh не найдены. Скачиваем свежую версию с GitHub...${NC}"
-    apt-get update
-    apt-get install -y ca-certificates curl tar
+    apt_update
+    apt_install ca-certificates curl tar
 
     tmp_dir="$(mktemp -d)"
     mkdir -p "$INSTALL_DIR"
@@ -91,8 +120,8 @@ fi
 echo -e "\n${BLUE}[1/5] Проверка и установка Docker & Docker Compose...${NC}"
 if ! command -v docker &> /dev/null; then
     echo "Установка Docker в систему..."
-    apt-get update
-    apt-get install -y ca-certificates curl gnupg
+    apt_update
+    apt_install ca-certificates curl gnupg
     install -m 0755 -d /etc/apt/keyrings
     
     # Репозиторий Docker
@@ -106,8 +135,8 @@ if ! command -v docker &> /dev/null; then
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $VERSION_CODENAME stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
     fi
     
-    apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    apt_update
+    apt_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     echo -e "${GREEN}Docker успешно установлен!${NC}"
 else
     echo -e "${GREEN}Docker уже установлен в системе.${NC}"
@@ -153,7 +182,7 @@ if [ "$DOMAIN_MODE" = true ]; then
     PANEL_PORT=1010 # В режиме домена запускаем панель на внутреннем порту 1010
     
     echo -e "\nУстановка Certbot для выпуска SSL-сертификата..."
-    apt-get install -y certbot
+    apt_install certbot
     
     # Временно освобождаем 80 порт
     systemctl stop nginx 2>/dev/null || true
@@ -185,18 +214,29 @@ fi
 
 # Записываем порт и секреты в файл окружения до запуска контейнера
 if ! command -v openssl >/dev/null 2>&1; then
-    apt-get update
-    apt-get install -y openssl
+    apt_update
+    apt_install openssl
 fi
 EXISTING_BOT_TOKEN="$(grep -E '^TELEGRAM_API_TOKEN=' data/panel.env 2>/dev/null | tail -n1 | cut -d= -f2- || true)"
 BOT_TOKEN="${EXISTING_BOT_TOKEN:-awg_bot_api_token_$(openssl rand -hex 16)}"
 SECRET_KEY_VALUE="$(grep -E '^SECRET_KEY=' data/panel.env 2>/dev/null | tail -n1 | cut -d= -f2- || true)"
 SECRET_KEY_VALUE="${SECRET_KEY_VALUE:-$(openssl rand -hex 32)}"
 EXISTING_WEB_PATH="$(grep -E '^PANEL_WEB_PATH=' data/panel.env 2>/dev/null | tail -n1 | cut -d= -f2- || true)"
-WEB_PATH="${EXISTING_WEB_PATH:-/$(openssl rand -hex 8)}"
+WEB_PATH="${EXISTING_WEB_PATH:-$(generate_web_path)}"
+PANEL_HTTPS_VALUE="0"
+PANEL_DOMAIN_VALUE=""
+PANEL_CERT_NAME_VALUE=""
+if [ "$DOMAIN_MODE" = true ]; then
+    PANEL_HTTPS_VALUE="1"
+    PANEL_DOMAIN_VALUE="$domain_name"
+    PANEL_CERT_NAME_VALUE="$domain_name"
+fi
 {
     echo "PANEL_PORT=$PANEL_PORT"
     echo "PANEL_WEB_PATH=$WEB_PATH"
+    echo "PANEL_HTTPS=$PANEL_HTTPS_VALUE"
+    echo "PANEL_DOMAIN=$PANEL_DOMAIN_VALUE"
+    echo "PANEL_CERT_NAME=$PANEL_CERT_NAME_VALUE"
     echo "TELEGRAM_API_TOKEN=$BOT_TOKEN"
     echo "API_TOKEN=$BOT_TOKEN"
     echo "SECRET_KEY=$SECRET_KEY_VALUE"
@@ -279,9 +319,9 @@ echo "=========================================================================$
 echo ""
 echo -e "Адрес панели в вашем браузере:"
 if [ "$DOMAIN_MODE" = true ]; then
-    echo -e "  🔗  ${CYAN}https://$domain_name${NC}"
+    echo -e "  🔗  ${CYAN}https://$domain_name$WEB_PATH${NC}"
 else
-    echo -e "  🔗  ${CYAN}http://$PUBLIC_IP${NC}"
+    echo -e "  🔗  ${CYAN}http://$PUBLIC_IP$WEB_PATH${NC}"
 fi
 echo ""
 echo -e "Данные для входа в панель:"

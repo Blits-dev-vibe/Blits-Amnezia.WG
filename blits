@@ -627,11 +627,11 @@ client_manager_menu() {
         elif [ "$clients_data" = "EMPTY" ] || [ -z "$clients_data" ]; then
             echo -e "Клиентов в базе данных нет."
             echo -e "-------------------------------------------------------------------------"
-            echo -e "1) ➕ Создать нового клиента"
+            echo -e "1) ➕ Создать нового клиента (или введите C)"
             echo -e "0) ↩️ Вернуться в главное меню"
             echo -e "-------------------------------------------------------------------------"
             read -rp "Выберите: " action
-            if [ "$action" = "1" ]; then
+            if [ "$action" = "1" ] || [ "$action" = "c" ] || [ "$action" = "C" ]; then
                 create_client_interactive
             elif [ "$action" = "0" ]; then
                 return

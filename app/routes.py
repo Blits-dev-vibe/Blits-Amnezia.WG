@@ -794,14 +794,19 @@ async def bulk_clients_action(
         ).fetchall()
         for row in rows:
             if action == "extend":
+                val_days = days
+                if val_days < 1:
+                    val_days = 1
+                elif val_days > 36500:
+                    val_days = 36500
                 try:
                     current_expire = datetime.datetime.fromisoformat(row["expires_at"])
                 except Exception:
                     current_expire = now
                 base_date = current_expire if current_expire > now else now
-                new_expire = (base_date + datetime.timedelta(days=days)).isoformat()
+                new_expire = (base_date + datetime.timedelta(days=val_days)).isoformat()
                 conn.execute("UPDATE clients SET expires_at = ?, disabled_at = NULL WHERE id = ?", (new_expire, row["id"]))
-                log_event("client_extended", f"Клиент {row['name']} продлен на {days} дн.", row["id"], row["name"])
+                log_event("client_extended", f"Клиент {row['name']} продлен на {val_days} дн.", row["id"], row["name"])
             elif action == "disable":
                 conn.execute("UPDATE clients SET disabled_at = ? WHERE id = ?", (now.isoformat(), row["id"]))
                 log_event("client_disabled", f"Клиент {row['name']} отключен массовым действием.", row["id"], row["name"], notify=True)
@@ -1069,6 +1074,10 @@ async def web_extend_client(
     days: int = Form(30),
     user: dict = Depends(check_password_change_required)
 ):
+    if days < 1:
+        days = 1
+    elif days > 36500:
+        days = 36500
     conn = get_db_connection()
     client = conn.execute("SELECT name, expires_at, route_type, remote_client_id FROM clients WHERE id = ?", (client_id,)).fetchone()
     if client:

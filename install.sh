@@ -16,6 +16,55 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# Значения по умолчанию
+NON_INTERACTIVE=false
+ARG_DOMAIN=""
+ARG_EMAIL=""
+ARG_PASSWORD=""
+ARG_PORT=""
+
+# Обработка аргументов командной строки
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -y|--yes|--non-interactive)
+            NON_INTERACTIVE=true
+            shift
+            ;;
+        --domain)
+            ARG_DOMAIN="$2"
+            shift 2
+            ;;
+        --email)
+            ARG_EMAIL="$2"
+            shift 2
+            ;;
+        --password)
+            ARG_PASSWORD="$2"
+            shift 2
+            ;;
+        --port)
+            ARG_PORT="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo -e "${GREEN}Использование:${NC} $0 [опции]"
+            echo ""
+            echo -e "${YELLOW}Опции:${NC}"
+            echo "  -y, --yes, --non-interactive  Установка в автоматическом режиме без вопросов"
+            echo "  --domain <domain>             Использовать домен и автоматически выпустить SSL"
+            echo "  --email <email>               Email для уведомлений Let's Encrypt SSL"
+            echo "  --password <password>         Задать надежный пароль администратора"
+            echo "  --port <port>                 Задать порт веб-панели (по умолчанию 80 для IP, 1010 для Nginx SSL)"
+            echo "  -h, --help                    Показать эту справку"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Ошибка: Неизвестный параметр $1${NC}" >&2
+            exit 1
+            ;;
+    esac
+done
+
 wait_for_apt_locks() {
     local waited=0
     while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
@@ -97,16 +146,24 @@ if [ -f /etc/os-release ]; then
     if [[ "$ID" != "ubuntu" && "$ID" != "debian" ]]; then
         echo -e "${YELLOW}Предупреждение: Установка рекомендуется на Ubuntu 22.04 / 24.04 LTS.${NC}"
         echo -e "Ваша система: $NAME ($VERSION)"
-        read -p "Продолжить установку на свой страх и риск? (y/n): " confirm_os
-        if [[ "$confirm_os" != "y" && "$confirm_os" != "Y" ]]; then
-            exit 1
+        if [ "$NON_INTERACTIVE" = true ]; then
+            echo -e "${YELLOW}Автоматическое подтверждение установки в non-interactive режиме.${NC}"
+        else
+            read -p "Продолжить установку на свой страх и риск? (y/n): " confirm_os
+            if [[ "$confirm_os" != "y" && "$confirm_os" != "Y" ]]; then
+                exit 1
+            fi
         fi
     fi
 else
     echo -e "${YELLOW}Предупреждение: Не удалось определить ОС.${NC}"
-    read -p "Продолжить установку? (y/n): " confirm_os
-    if [[ "$confirm_os" != "y" && "$confirm_os" != "Y" ]]; then
-        exit 1
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo -e "${YELLOW}Автоматическое подтверждение установки в non-interactive режиме.${NC}"
+    else
+        read -p "Продолжить установку? (y/n): " confirm_os
+        if [[ "$confirm_os" != "y" && "$confirm_os" != "Y" ]]; then
+            exit 1
+        fi
     fi
 fi
 
@@ -140,6 +197,20 @@ if ! command -v docker &> /dev/null; then
     echo -e "${GREEN}Docker успешно установлен!${NC}"
 else
     echo -e "${GREEN}Docker уже установлен в системе.${NC}"
+    # Убедимся, что служба Docker запущена и работает
+    if ! systemctl is-active --quiet docker; then
+        echo -e "${YELLOW}Служба Docker остановлена. Запуск службы...${NC}"
+        systemctl start docker || true
+        systemctl enable docker || true
+    fi
+fi
+
+# Определение команды Docker Compose (docker compose или docker-compose)
+DOCKER_COMPOSE_CMD="docker compose"
+if docker compose version >/dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker-compose"
 fi
 
 echo -e "\n${BLUE}[2/5] Сборка и настройка AmneziaWG в ядре сервера...${NC}"
@@ -155,31 +226,42 @@ fi
 # Подготовка директории для БД и данных
 mkdir -p data/clients data/qr
 
-# Шаг 4. Интерактивный опрос: Домен или IP
-echo -e "\n${BLUE}[3/5] Настройка режима работы веб-панели:${NC}"
-echo -e "  1) Доступ по ${CYAN}IP-адресу${NC} сервера (без шифрования SSL, порт 80)"
-echo -e "  2) Доступ по ${CYAN}доменному имени${NC} (с автоматическим выпуском SSL-сертификата Let's Encrypt)"
-echo ""
-read -p "Выберите вариант (1 или 2, по умолчанию 1): " net_choice
-net_choice=${net_choice:-1}
-
+# Шаг 4. Настройка режима работы веб-панели
 DOMAIN_MODE=false
 PANEL_PORT=8080
 
-if [[ "$net_choice" == "2" ]]; then
+if [ -n "$ARG_DOMAIN" ]; then
     DOMAIN_MODE=true
-    echo -e "\n--- Настройка домена и SSL ---"
-    read -p "Введите ваш домен (например, vpn.mysite.com): " domain_name
-    read -p "Введите ваш Email (для Let's Encrypt оповещений): " email_address
-    
-    if [[ -z "$domain_name" || -z "$email_address" ]]; then
-        echo -e "${RED}Ошибка: Имя домена и email не могут быть пустыми! Возврат к режиму IP.${NC}"
+    domain_name="$ARG_DOMAIN"
+    email_address="${ARG_EMAIL:-admin@$ARG_DOMAIN}"
+else
+    if [ "$NON_INTERACTIVE" = true ]; then
+        # По умолчанию в тихом режиме - IP доступ
         DOMAIN_MODE=false
+    else
+        echo -e "\n${BLUE}[3/5] Настройка режима работы веб-панели:${NC}"
+        echo -e "  1) Доступ по ${CYAN}IP-адресу${NC} сервера (без шифрования SSL, порт 80)"
+        echo -e "  2) Доступ по ${CYAN}доменному имени${NC} (с автоматическим выпуском SSL-сертификата Let's Encrypt)"
+        echo ""
+        read -p "Выберите вариант (1 или 2, по умолчанию 1): " net_choice
+        net_choice=${net_choice:-1}
+        
+        if [[ "$net_choice" == "2" ]]; then
+            DOMAIN_MODE=true
+            echo -e "\n--- Настройка домена и SSL ---"
+            read -p "Введите ваш домен (например, vpn.mysite.com): " domain_name
+            read -p "Введите ваш Email (для Let's Encrypt оповещений): " email_address
+            
+            if [[ -z "$domain_name" || -z "$email_address" ]]; then
+                echo -e "${RED}Ошибка: Имя домена и email не могут быть пустыми! Возврат к режиму IP.${NC}"
+                DOMAIN_MODE=false
+            fi
+        fi
     fi
 fi
 
 if [ "$DOMAIN_MODE" = true ]; then
-    PANEL_PORT=1010 # В режиме домена запускаем панель на внутреннем порту 1010
+    PANEL_PORT=${ARG_PORT:-1010} # В режиме домена запускаем панель на внутреннем порту 1010 (или кастомном)
     
     echo -e "\nУстановка Certbot для выпуска SSL-сертификата..."
     apt_install certbot
@@ -209,7 +291,7 @@ if [ "$DOMAIN_MODE" = true ]; then
 fi
 
 if [ "$DOMAIN_MODE" = false ]; then
-    PANEL_PORT=80 # В режиме IP вешаем панель напрямую на 80 веб-порт
+    PANEL_PORT=${ARG_PORT:-80} # В режиме IP вешаем панель напрямую на 80 веб-порт (или кастомный)
 fi
 
 # Записываем порт и секреты в файл окружения до запуска контейнера
@@ -217,6 +299,13 @@ if ! command -v openssl >/dev/null 2>&1; then
     apt_update
     apt_install openssl
 fi
+
+mkdir -p data
+if [ ! -f data/panel.env ]; then
+    touch data/panel.env
+    chmod 600 data/panel.env
+fi
+
 EXISTING_BOT_TOKEN="$(grep -E '^TELEGRAM_API_TOKEN=' data/panel.env 2>/dev/null | tail -n1 | cut -d= -f2- || true)"
 BOT_TOKEN="${EXISTING_BOT_TOKEN:-awg_bot_api_token_$(openssl rand -hex 16)}"
 SECRET_KEY_VALUE="$(grep -E '^SECRET_KEY=' data/panel.env 2>/dev/null | tail -n1 | cut -d= -f2- || true)"
@@ -231,6 +320,7 @@ if [ "$DOMAIN_MODE" = true ]; then
     PANEL_DOMAIN_VALUE="$domain_name"
     PANEL_CERT_NAME_VALUE="$domain_name"
 fi
+
 {
     echo "PANEL_PORT=$PANEL_PORT"
     echo "PANEL_WEB_PATH=$WEB_PATH"
@@ -243,71 +333,125 @@ fi
 } > data/panel.env
 chmod 600 data/panel.env
 
-# Шаг 5. Интерактивный опрос: Настройка пароля администратора
-echo -e "\n${BLUE}[4/5] Настройка пароля администратора:${NC}"
-echo -e "  1) Оставить пароль по умолчанию (${CYAN}admin / admin${NC})"
-echo -e "     (При первом входе в панель система принудительно попросит сменить пароль)"
-echo -e "  2) Задать надежный пароль прямо сейчас"
-echo ""
-read -p "Выберите вариант (1 или 2, по умолчанию 1): " pass_choice
-pass_choice=${pass_choice:-1}
-
+# Шаг 5. Настройка пароля администратора
 CUSTOM_PASS=""
-if [[ "$pass_choice" == "2" ]]; then
-    echo -e "\n--- Настройка пароля ---"
-    while true; do
-        read -s -p "Введите новый пароль администратора: " custom_pass
+if [ -n "$ARG_PASSWORD" ]; then
+    CUSTOM_PASS="$ARG_PASSWORD"
+else
+    if [ "$NON_INTERACTIVE" = true ]; then
+        # В тихом режиме автоматически генерируем надежный случайный пароль
+        CUSTOM_PASS=$(openssl rand -hex 6)
+    else
+        echo -e "\n${BLUE}[4/5] Настройка пароля администратора:${NC}"
+        echo -e "  1) Оставить пароль по умолчанию (${CYAN}admin / admin${NC})"
+        echo -e "     (При первом входе в панель система принудительно попросит сменить пароль)"
+        echo -e "  2) Задать надежный пароль прямо сейчас"
         echo ""
-        read -s -p "Повторите новый пароль: " custom_pass_confirm
-        echo ""
+        read -p "Выберите вариант (1 или 2, по умолчанию 1): " pass_choice
+        pass_choice=${pass_choice:-1}
         
-        if [ "$custom_pass" = "$custom_pass_confirm" ]; then
-            if [ ${#custom_pass} -lt 5 ]; then
-                echo -e "${RED}Ошибка: Пароль должен содержать минимум 5 символов! Попробуйте снова.${NC}"
-            else
-                CUSTOM_PASS="$custom_pass"
-                break
-            fi
-        else
-            echo -e "${RED}Ошибка: Пароли не совпадают! Попробуйте снова.${NC}"
+        if [[ "$pass_choice" == "2" ]]; then
+            echo -e "\n--- Настройка пароля ---"
+            while true; do
+                read -s -p "Введите новый пароль администратора: " custom_pass
+                echo ""
+                read -s -p "Повторите новый пароль: " custom_pass_confirm
+                echo ""
+                
+                if [ "$custom_pass" = "$custom_pass_confirm" ]; then
+                    if [ ${#custom_pass} -lt 5 ]; then
+                        echo -e "${RED}Ошибка: Пароль должен содержать минимум 5 символов! Попробуйте снова.${NC}"
+                    else
+                        CUSTOM_PASS="$custom_pass"
+                        break
+                    fi
+                else
+                    echo -e "${RED}Ошибка: Пароли не совпадают! Попробуйте снова.${NC}"
+                fi
+            done
         fi
-    done
+    fi
 fi
 
 # Шаг 6. Сборка и запуск Docker контейнеров
 echo -e "\n${BLUE}[5/5] Запуск контейнеров в Docker...${NC}"
-# Остановим старые контейнеры, если были
-docker compose down || true
+# Остановим старые контейнеры по именам во избежание конфликтов
+docker stop amnezia-panel nginx-proxy 2>/dev/null || true
+docker rm amnezia-panel nginx-proxy 2>/dev/null || true
+$DOCKER_COMPOSE_CMD down || true
 
 if [ "$DOMAIN_MODE" = true ]; then
     echo "Запуск панели с SSL-проксированием Nginx..."
-    docker compose --profile ssl up -d --build
+    $DOCKER_COMPOSE_CMD --profile ssl up -d --build
 else
     echo "Запуск панели в режиме прямого IP-доступа..."
-    docker compose up -d --build
+    $DOCKER_COMPOSE_CMD up -d --build
+fi
+
+# Ожидание инициализации контейнера и базы данных
+echo "Ожидание запуска контейнера amnezia-panel и инициализации БД..."
+container_ready=false
+for i in {1..30}; do
+    if docker ps --filter "name=amnezia-panel" --filter "status=running" | grep -q "amnezia-panel"; then
+        # Проверяем готовность таблицы users в SQLite
+        if docker exec amnezia-panel python3 -c "
+import sqlite3, os
+db = '/app/data/panel.db'
+if os.path.exists(db):
+    try:
+        conn = sqlite3.connect(db)
+        cur = conn.cursor()
+        cur.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='users'\")
+        if cur.fetchone():
+            conn.close()
+            exit(0)
+    except Exception:
+        pass
+exit(1)
+" 2>/dev/null; then
+            container_ready=true
+            break
+        fi
+    fi
+    sleep 1
+done
+
+if [ "$container_ready" = false ]; then
+    echo -e "${RED}Внимание: Контейнер amnezia-panel не запустился вовремя или БД не готова.${NC}"
 fi
 
 echo "Проверка и синхронизация VPN-интерфейсов Amnezia 2.0 и Legacy..."
-sleep 3
 docker exec amnezia-panel python3 -c "from app.vpn_manager import rebuild_and_sync_vpn_config; rebuild_and_sync_vpn_config()" || true
 
 # Шаг 7. Применение кастомного пароля в БД (если был выбран)
 if [[ -n "$CUSTOM_PASS" ]]; then
     echo "Применение настроенного вами пароля администратора..."
-    # Даем базе данных и контейнеру 3 секунды на инициализацию
-    sleep 3
-    
-    docker exec -e ADMIN_PASSWORD="$CUSTOM_PASS" amnezia-panel python3 -c "
-import os
-import sqlite3, bcrypt
-conn = sqlite3.connect('/app/data/panel.db')
-password = os.environ['ADMIN_PASSWORD'].encode('utf-8')
-h = bcrypt.hashpw(password, bcrypt.gensalt()).decode('utf-8')
-conn.execute('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE username = \"admin\"', (h,))
-conn.commit()
-conn.close()
-"
+    # Передаем пароль через стандартный ввод (stdin), чтобы он не светился в списке процессов
+    docker exec -i amnezia-panel python3 -c "
+import sys, sqlite3, bcrypt
+password = sys.stdin.read().strip().encode('utf-8')
+if password:
+    h = bcrypt.hashpw(password, bcrypt.gensalt()).decode('utf-8')
+    conn = sqlite3.connect('/app/data/panel.db')
+    conn.execute('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE username = \"admin\"', (h,))
+    conn.commit()
+    conn.close()
+" <<< "$CUSTOM_PASS"
     echo -e "${GREEN}Новый пароль успешно применен в базу данных!${NC}"
+fi
+
+# Автоматическая настройка UFW, если он активен
+if ufw status | grep -q "Status: active"; then
+    echo -e "\n${BLUE}Настройка брандмауэра UFW...${NC}"
+    if [ "$DOMAIN_MODE" = true ]; then
+        echo "Разрешаем входящий TCP трафик для HTTP/HTTPS (порты 80, 443)..."
+        ufw allow 80/tcp
+        ufw allow 443/tcp
+    else
+        echo "Разрешаем входящий TCP трафик для веб-панели (порт $PANEL_PORT)..."
+        ufw allow "$PANEL_PORT/tcp"
+    fi
+    ufw reload
 fi
 
 # Вывод красивого финального баннера
@@ -324,10 +468,14 @@ else
     echo -e "  🔗  ${CYAN}http://$PUBLIC_IP$WEB_PATH${NC}"
 fi
 echo ""
-echo -e "Данные для входа в панель:"
+echo -e "Данные для входа в надежную панель:"
 echo -e "  👤  Имя пользователя: ${CYAN}admin${NC}"
 if [[ -n "$CUSTOM_PASS" ]]; then
-    echo -e "  🔑  Пароль:           ${CYAN}[Установлен ваш личный надежный пароль]${NC}"
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo -e "  🔑  Пароль:           ${GREEN}$CUSTOM_PASS${NC} (сохраните его!)"
+    else
+        echo -e "  🔑  Пароль:           ${CYAN}[Установлен ваш личный надежный пароль]${NC}"
+    fi
 else
     echo -e "  🔑  Пароль:           ${CYAN}admin${NC} (система сразу потребует его смену)"
 fi

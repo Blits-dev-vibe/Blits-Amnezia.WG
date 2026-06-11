@@ -29,7 +29,13 @@ if command -v awg >/dev/null 2>&1; then
 else
   echo "Обновление пакетного менеджера и установка базовых утилит..."
   apt-get update
-  apt-get install -y software-properties-common iptables ufw curl
+  
+  # Пытаемся установить linux-headers и dkms для успешной сборки модуля
+  echo "Установка заголовков ядра и DKMS..."
+  apt-get install -y software-properties-common iptables ufw curl dkms linux-headers-$(uname -r) || {
+    echo "Предупреждение: Не удалось установить заголовки ядра linux-headers-$(uname -r). Модуль DKMS может не собраться."
+    apt-get install -y software-properties-common iptables ufw curl dkms
+  }
 
   echo "Добавление PPA репозитория AmneziaWG..."
   add-apt-repository -y ppa:amnezia/ppa
@@ -84,8 +90,12 @@ PUBLIC_KEY_FILE="/etc/amnezia/amneziawg/server.pub"
 
 if [ ! -f "$PRIVATE_KEY_FILE" ]; then
   echo "Генерация ключей сервера AmneziaWG..."
-  awg genkey | tee "$PRIVATE_KEY_FILE" | awg pubkey > "$PUBLIC_KEY_FILE"
-  chmod 600 "$PRIVATE_KEY_FILE"
+  # Устанавливаем umask для создания файлов с правами только для root
+  (
+    umask 077
+    awg genkey > "$PRIVATE_KEY_FILE"
+  )
+  awg pubkey < "$PRIVATE_KEY_FILE" > "$PUBLIC_KEY_FILE"
   echo "Ключи успешно сгенерированы."
 else
   echo "Ключи сервера уже существуют. Используем существующие."
@@ -101,8 +111,12 @@ LEGACY_PORT="43913"
 
 if [ ! -f "$LEGACY_PRIVATE_KEY_FILE" ]; then
   echo "Генерация отдельного ключа сервера для Amnezia Legacy..."
-  awg genkey | tee "$LEGACY_PRIVATE_KEY_FILE" | awg pubkey > "$LEGACY_PUBLIC_KEY_FILE"
-  chmod 600 "$LEGACY_PRIVATE_KEY_FILE"
+  # Устанавливаем umask для создания файлов с правами только для root
+  (
+    umask 077
+    awg genkey > "$LEGACY_PRIVATE_KEY_FILE"
+  )
+  awg pubkey < "$LEGACY_PRIVATE_KEY_FILE" > "$LEGACY_PUBLIC_KEY_FILE"
 else
   echo "Legacy-ключи сервера уже существуют. Используем существующие."
 fi

@@ -47,16 +47,23 @@ else
 fi
 
 # Включение форвардинга пакетов
-echo "Включение форвардинга IPv4 и IPv6 пакетов..."
+echo "Включение форвардинга IPv4 и (опционально) IPv6 пакетов..."
 sysctl -w net.ipv4.ip_forward=1
-sysctl -w net.ipv6.conf.all.forwarding=1
+
+# Включаем IPv6 форвардинг только если система поддерживает IPv6
+if [ -f /proc/sys/net/ipv6/conf/all/forwarding ]; then
+  sysctl -w net.ipv6.conf.all.forwarding=1
+fi
 
 # Сохранение в sysctl.conf
 if ! grep -q "net.ipv4.ip_forward=1" /etc/sysctl.conf; then
   echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
 fi
-if ! grep -q "net.ipv6.conf.all.forwarding=1" /etc/sysctl.conf; then
-  echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf
+
+if [ -f /proc/sys/net/ipv6/conf/all/forwarding ]; then
+  if ! grep -q "net.ipv6.conf.all.forwarding=1" /etc/sysctl.conf; then
+    echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf
+  fi
 fi
 
 # Определение основного сетевого интерфейса
